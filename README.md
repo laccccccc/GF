@@ -49,3 +49,11 @@ key: rolling-database
 ```
 
 首次打开函数时，如果 Blobs 为空，会用 `initial-data.mjs` 里的固定模板数据初始化。
+
+如果早期版本曾经初始化出空白行，重新部署修复版后，在页面里填写管理密码并点击：
+
+```text
+重置为固定模板
+```
+
+即可把 Blobs 里的数据库恢复成 `initial-data.mjs` 的固定模板数据。

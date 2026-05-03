@@ -332,6 +332,7 @@
         <div class="actions">
             <button class="danger" id="cleanDupBtn">清理重复公司</button>
             <button class="secondary" id="copyDbBtn">复制数据库 TSV</button>
+            <button class="secondary" id="resetDbBtn">重置为固定模板</button>
         </div>
         <div class="log" id="dbLog"></div>
         <div class="preview-wrap" style="margin-top:12px">
@@ -440,6 +441,15 @@ async function cleanupDuplicateCompanies() {
     state.seedCount = data.seedCount || state.seedCount;
     renderDatabase(data.removed ? ("已清理 " + data.removed + " 条重复行，保留序号靠前的记录。") : "没有发现中文名或英文名完全相同的靠后重复行。");
     return data.removed || 0;
+}
+
+async function resetRemoteDatabase() {
+    if (!confirm("确定要把线上数据库重置为固定模板吗？这会清空所有已滚动新增的数据。")) return;
+    const data = await apiRequest("POST", { action: "reset" });
+    state.dbRows = Array.isArray(data.rows) ? data.rows : [];
+    state.seedCount = data.seedCount || state.seedCount;
+    renderDatabase("已重置为固定模板：" + state.dbRows.length + " 条。");
+    setStatus("线上数据库已重置为固定模板。", "ok");
 }
 
 function bindDrop(labelId, inputId, nameId, onFile) {
@@ -1274,6 +1284,7 @@ $("generateBtn").addEventListener("click", generate);
 $("copyBtn").addEventListener("click", copyGeneratedTsv);
 $("copyDbBtn").addEventListener("click", copyDatabaseTsv);
 $("cleanDupBtn").addEventListener("click", cleanupDuplicateCompanies);
+$("resetDbBtn").addEventListener("click", resetRemoteDatabase);
 document.addEventListener("DOMContentLoaded", async function () {
     try {
         requireLibraries();
