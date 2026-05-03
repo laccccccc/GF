@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPO 递表项目自动生成工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg: #f4f6f8;
+            --panel: #ffffff;
+            --ink: #1f2937;
+            --muted: #6b7280;
+            --line: #d9dee8;
+            --blue: #1769e0;
+            --green: #16834a;
+            --amber: #a15c00;
+            --red: #b42318;
+            --soft-blue: #eef5ff;
+            --soft-green: #ebf8f1;
+            --soft-amber: #fff7e8;
+            --soft-red: #fff1f0;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 24px;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+        }
+        .container {
+            max-width: 1180px;
+            margin: 0 auto;
+        }
+        .topbar {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 18px;
+        }
+        h1 {
+            margin: 0 0 6px;
+            font-size: 24px;
+            letter-spacing: 0;
+        }
+        .subtitle {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.7;
+        }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 4px 10px;
+            border: 1px solid #b7c7e8;
+            border-radius: 999px;
+            background: var(--soft-blue);
+            color: #174783;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .panel {
+            background: var(--panel);
+            border: 1px solid #e4e7ec;
+            border-radius: 8px;
+            padding: 18px;
+            box-shadow: 0 10px 28px rgba(31, 41, 55, 0.06);
+            margin-bottom: 16px;
+        }
+        .panel h2 {
+            margin: 0 0 12px;
+            font-size: 16px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .drop {
+            min-height: 138px;
+            border: 1.5px dashed #aeb8c9;
+            border-radius: 8px;
+            background: #fbfcfe;
+            padding: 14px;
+            cursor: pointer;
+            transition: border-color .16s ease, background .16s ease;
+            position: relative;
+        }
+        .drop:hover,
+        .drop.dragover {
+            border-color: var(--blue);
+            background: var(--soft-blue);
+        }
+        .drop input { display: none; }
+        .drop-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .drop-text {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .file-name {
+            margin-top: 12px;
+            color: var(--green);
+            font-size: 12px;
+            word-break: break-all;
+        }
+        .badge {
+            position: absolute;
+            right: 12px;
+            top: 12px;
+            font-size: 11px;
+            color: #5d6b82;
+            background: #eef1f5;
+            border-radius: 999px;
+            padding: 3px 8px;
+        }
+        .options {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px 16px;
+            margin-top: 14px;
+        }
+        label.check {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            color: #344054;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            margin-top: 2px;
+        }
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        button {
+            border: 0;
+            border-radius: 7px;
+            min-height: 42px;
+            padding: 0 16px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            color: #fff;
+            background: var(--blue);
+        }
+        button.secondary { background: #475467; }
+        button.success { background: var(--green); }
+        button.danger { background: #b42318; }
+        button:disabled {
+            background: #aab2c0;
+            cursor: not-allowed;
+        }
+        .status {
+            display: none;
+            margin-top: 14px;
+            border-radius: 7px;
+            padding: 10px 12px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .status.show { display: block; }
+        .status.info { background: var(--soft-blue); color: #174783; border: 1px solid #c7daf7; }
+        .status.ok { background: var(--soft-green); color: #12643a; border: 1px solid #b7e4ca; }
+        .status.warn { background: var(--soft-amber); color: var(--amber); border: 1px solid #f3cf98; }
+        .status.err { background: var(--soft-red); color: var(--red); border: 1px solid #ffccc7; }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 8px;
+        }
+        .metric {
+            border: 1px solid #e4e7ec;
+            border-radius: 8px;
+            padding: 10px 12px;
+            background: #fbfcfe;
+        }
+        .metric span {
+            display: block;
+            color: var(--muted);
+            font-size: 12px;
+        }
+        .metric strong {
+            display: block;
+            margin-top: 4px;
+            font-size: 22px;
+        }
+        .preview-wrap {
+            overflow: auto;
+            border: 1px solid #e4e7ec;
+            border-radius: 8px;
+            max-height: 420px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            background: #fff;
+        }
+        th, td {
+            border-bottom: 1px solid #edf0f5;
+            border-right: 1px solid #edf0f5;
+            padding: 8px 9px;
+            vertical-align: top;
+            min-width: 92px;
+            max-width: 260px;
+            line-height: 1.45;
+        }
+        th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #f8fafc;
+            color: #344054;
+            text-align: left;
+            white-space: nowrap;
+        }
+        td:nth-child(11) { min-width: 300px; }
+        .log {
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+        textarea {
+            width: 100%;
+            min-height: 180px;
+            resize: vertical;
+            border: 1px solid var(--line);
+            border-radius: 7px;
+            padding: 10px 12px;
+            line-height: 1.55;
+            font-size: 13px;
+            font-family: Consolas, "Microsoft YaHei", monospace;
+        }
+        textarea.copy-area {
+            min-height: 220px;
+            background: #fbfcfe;
+        }
+        details summary {
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        .legacy-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        @media (max-width: 900px) {
+            body { padding: 14px; }
+            .topbar { align-items: flex-start; flex-direction: column; }
+            .grid, .options, .summary, .legacy-grid { grid-template-columns: 1fr; }
+            .actions button { flex: 1 1 180px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="topbar">
+        <div>
+            <h1>IPO 递表项目数据库</h1>
+            <p class="subtitle">固定模板作为数据库底座。每周上传聆讯信息和全球资本市场周报，生成本周 TSV 后自动滚动加入数据库。</p>
+        </div>
+        <div class="pill">保荐人 / 整体协调人强制来自周报 PPT</div>
+    </div>
+
+    <section class="panel">
+        <h2>1. 每周上传</h2>
+        <div class="grid">
+            <label class="drop" id="dropHearing">
+                <span class="badge">必选</span>
+                <input type="file" id="hearingFile" accept=".xlsx,.xls">
+                <div class="drop-title">聆讯信息一览 Excel</div>
+                <div class="drop-text">读取公司名称、英文名、A1 日期、律师、收入、净利润、审核状态等字段。</div>
+                <div class="file-name" id="hearingName"></div>
+            </label>
+            <label class="drop" id="dropPpt">
+                <span class="badge">必选</span>
+                <input type="file" id="pptFile" accept=".pptx">
+                <div class="drop-title">全球资本市场周报 PPTX</div>
+                <div class="drop-text">读取“最近一周港股新增上市申请”表格，公司顺序、保荐人和整体协调人均来自这里。</div>
+                <div class="file-name" id="pptName"></div>
+            </label>
+        </div>
+
+        <div class="options">
+            <label class="check"><input type="checkbox" id="preferPptBrief" checked>地区、行业优先使用周报中的口径；主营业务优先使用聆讯表简介并做 200 字完整句截断。</label>
+            <label class="check"><input type="checkbox" id="fallbackSponsor">周报未匹配时，允许用聆讯表保荐人 / 协调人兜底。</label>
+        </div>
+        <div style="margin-top:14px">
+            <label class="drop-text" for="adminToken" style="display:block;margin-bottom:6px">管理密码（如 Netlify 环境变量设置了 IPO_DB_TOKEN，写入和清理前需填写）</label>
+            <input id="adminToken" type="password" placeholder="可留空，取决于你的 Netlify 设置" style="width:100%;height:40px;border:1px solid var(--line);border-radius:7px;padding:0 12px;font-size:13px">
+        </div>
+
+        <div class="actions">
+            <button id="generateBtn">生成本周 TSV 并加入数据库</button>
+            <button class="secondary" id="copyBtn" disabled>复制本周 TSV</button>
+        </div>
+        <div class="status info show" id="statusBox">等待上传文件。</div>
+    </section>
+
+    <section class="panel" id="resultPanel" style="display:none">
+        <h2>2. 本周 TSV</h2>
+        <div class="summary" id="summary"></div>
+        <div class="log" id="log"></div>
+        <textarea class="copy-area" id="weeklyTsv" readonly spellcheck="false"></textarea>
+        <p class="subtitle">生成后这里会自动选中；直接按 Ctrl+C / Command+C 即可复制。</p>
+    </section>
+
+    <section class="panel">
+        <h2>3. 数据库</h2>
+        <div class="summary" id="dbSummary"></div>
+        <div class="actions">
+            <button class="danger" id="cleanDupBtn">清理重复公司</button>
+            <button class="secondary" id="copyDbBtn">复制数据库 TSV</button>
+        </div>
+        <div class="log" id="dbLog"></div>
+        <div class="preview-wrap" style="margin-top:12px">
+            <table id="dbTable"></table>
+        </div>
+    </section>
+</div>
+
+<script>
+const OUTPUT_HEADERS = [
+    "", "公司中文名称", "公司英文名称", "交表日", "保荐人", "整体协调人",
+    "公司律师", "保荐人律师", "地区", "行业", "主营业务",
+    "最新年内收入\n（人民币千元）", "最新归母年内净利润\n（人民币千元）", "审核状态"
+];
+
+const API_URL = "/.netlify/functions/ipo-db";
+
+const institutionMap = {
+    "中国国际金融": "中金", "中金": "中金", "中银国际": "中银国际", "中信证券": "中信",
+    "中信里昂": "中信里昂", "中信建投": "中信建投", "华泰金融": "华泰", "华泰": "华泰",
+    "海通国际": "海通", "海通": "海通", "招银国际": "招银国际", "招商": "招商",
+    "建银国际": "建银国际", "农银国际": "农银国际", "工银国际": "工银国际",
+    "交银国际": "交银国际", "广发融资": "广发香港", "广发香港": "广发香港",
+    "国泰君安": "国泰君安", "国金证券": "国金证券", "中泰国际": "中泰",
+    "兴证国际": "兴证国际", "民银资本": "民银资本", "浦银国际": "浦银国际",
+    "富瑞": "富瑞金融", "德意志": "德意志银行", "摩根士丹利": "摩根士丹利",
+    "摩根大通": "摩根大通", "高盛": "高盛", "美林": "美林", "瑞银": "瑞银",
+    "瑞信": "瑞信", "花旗": "花旗", "汇丰": "汇丰", "野村": "野村", "信达国际": "信达国际",
+    "清科资本": "清科资本", "法国巴黎": "法国巴黎证券", "华富建业": "华富建业"
+};
+
+const state = {
+    hearingFile: null,
+    pptFile: null,
+    hearingItems: [],
+    pptRecords: [],
+    generatedRows: [],
+    dbRows: [],
+    seedCount: 0,
+    lastLog: []
+};
+
+function $(id) { return document.getElementById(id); }
+
+function setStatus(message, type) {
+    const box = $("statusBox");
+    box.textContent = message;
+    box.className = "status show " + (type || "info");
+}
+
+function requireLibraries() {
+    if (typeof JSZip === "undefined") throw new Error("JSZip 未加载，请确认可以访问网络后刷新页面。");
+    if (typeof XLSX === "undefined") throw new Error("Excel 解析库未加载，请确认可以访问网络后刷新页面。");
+}
+
+function getAdminToken() {
+    const input = $("adminToken");
+    const token = input ? input.value.trim() : "";
+    if (token) sessionStorage.setItem("ipoDbToken", token);
+    return token || sessionStorage.getItem("ipoDbToken") || "";
+}
+
+async function apiRequest(method, body) {
+    const headers = {};
+    if (body) headers["content-type"] = "application/json";
+    const token = getAdminToken();
+    if (token) headers["x-ipo-db-token"] = token;
+
+    const response = await fetch(API_URL, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await response.json().catch(function () { return {}; });
+    if (!response.ok) throw new Error(data.error || ("线上数据库请求失败：" + response.status));
+    return data;
+}
+
+async function loadRemoteDatabase(message) {
+    const data = await apiRequest("GET");
+    state.dbRows = Array.isArray(data.rows) ? data.rows : [];
+    state.seedCount = data.seedCount || 0;
+    renderDatabase(message || (data.writeProtected ? "线上数据库已连接，写入需要管理密码。" : "线上数据库已连接。未设置管理密码时，知道网址的人都可以写入。"));
+    return state.dbRows;
+}
+
+async function getDatabaseRows() {
+    if (!state.dbRows.length) await loadRemoteDatabase();
+    return state.dbRows;
+}
+
+async function prependWeeklyRows(rows) {
+    const weeklyRows = rows.slice(1).map(function (row) {
+        return normalizeWidth(row, OUTPUT_HEADERS.length);
+    });
+    const data = await apiRequest("POST", { action: "prepend", rows: weeklyRows });
+    state.dbRows = Array.isArray(data.rows) ? data.rows : [];
+    state.seedCount = data.seedCount || state.seedCount;
+    if (data.warning) $("dbLog").textContent = data.warning;
+    return data.added || weeklyRows.length;
+}
+
+async function cleanupDuplicateCompanies() {
+    const data = await apiRequest("POST", { action: "cleanup" });
+    state.dbRows = Array.isArray(data.rows) ? data.rows : [];
+    state.seedCount = data.seedCount || state.seedCount;
+    renderDatabase(data.removed ? ("已清理 " + data.removed + " 条重复行，保留序号靠前的记录。") : "没有发现中文名或英文名完全相同的靠后重复行。");
+    return data.removed || 0;
+}
+
+function bindDrop(labelId, inputId, nameId, onFile) {
+    const label = $(labelId);
+    const input = $(inputId);
+    label.addEventListener("click", function (e) {
+        if (e.target !== input) {
+            e.preventDefault();
+            input.click();
+        }
+    });
+    input.addEventListener("click", function (e) { e.stopPropagation(); });
+    input.addEventListener("change", async function () {
+        if (input.files && input.files[0]) await onFile(input.files[0], nameId);
+    });
+    ["dragover", "dragleave", "drop"].forEach(function (eventName) {
+        label.addEventListener(eventName, async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (eventName === "dragover") label.classList.add("dragover");
+            if (eventName === "dragleave") label.classList.remove("dragover");
+            if (eventName === "drop") {
+                label.classList.remove("dragover");
+                const file = e.dataTransfer.files && e.dataTransfer.files[0];
+                if (file) await onFile(file, nameId);
+            }
+        });
+    });
+}
+
+function readAsArrayBuffer(file) {
+    return new Promise(function (resolve, reject) {
+        const reader = new FileReader();
+        reader.onload = function (e) { resolve(e.target.result); };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+function cleanText(value) {
+    let s = value == null ? "" : String(value);
+    s = stripOfficeXml(s);
+    return s
+        .replace(/_x000D_/gi, "\n")
+        .replace(/\u00a0/g, " ")
+        .replace(/\r/g, "\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+}
+
+function stripOfficeXml(value) {
+    let s = value == null ? "" : String(value);
+    if (!/(<\/?a:|a:(?:defRPr|pPr|rPr|latin|ea|cs|solidFill|schemeClr|t\b)|rPrsz=|typeface=|schemeClrval=|smtClean=|dirty=|err=)/i.test(s)) return s;
+    s = s
+        .replace(/<[^>]*>/g, "\n")
+        .replace(/\b\/?a:[A-Za-z0-9]+[^<>\n]*(?:>|$)/g, "\n")
+        .replace(/\b(?:lang|altLang|sz|b|dirty|err|smtClean|typeface|val|schemeClrval)="[^"]*"/g, " ")
+        .replace(/\b(?:rPrsz|latin|ea|cs|defRPr|pPr|rPr|solidFill|schemeClr)[^<>\n]*/gi, "\n");
+    return s;
+}
+
+function compactText(value) {
+    return cleanText(value).replace(/\s+/g, "");
+}
+
+function xmlDecode(value) {
+    return (value || "")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, "\"")
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'");
+}
+
+function formatDate(value) {
+    if (value == null || value === "") return "";
+    if (value instanceof Date && !isNaN(value)) {
+        return value.getFullYear() + "-" + pad2(value.getMonth() + 1) + "-" + pad2(value.getDate());
+    }
+    if (typeof value === "number" && value > 20000 && value < 90000) {
+        const parsed = XLSX.SSF.parse_date_code(value);
+        if (parsed) return parsed.y + "-" + pad2(parsed.m) + "-" + pad2(parsed.d);
+    }
+    let s = cleanText(value);
+    if (!s) return "";
+    s = s.replace(/\s+00:00:00$/, "").replace(/[/.年]/g, "-").replace(/月/g, "-").replace(/日/g, "");
+    const m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return m[1] + "-" + pad2(m[2]) + "-" + pad2(m[3]);
+    return s;
+}
+
+function pad2(value) {
+    return String(value).padStart(2, "0");
+}
+
+function formatChineseDate(value) {
+    const s = formatDate(value);
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return s;
+    return Number(m[1]) + "年" + Number(m[2]) + "月" + Number(m[3]) + "日";
+}
+
+function readCell(ws, row, col) {
+    const cell = ws[XLSX.utils.encode_cell({ r: row, c: col })];
+    if (!cell) return "";
+    if (cell.t === "d") return formatDate(cell.v);
+    if (cell.t === "n" && cell.z && /[ymd年月日]/i.test(cell.z)) return formatDate(cell.v);
+    if (cell.v != null && cell.v !== "") return cleanText(cell.v);
+    if (cell.w != null && cell.w !== "") return cleanText(cell.w);
+    return "";
+}
+
+function sheetToRows(ws) {
+    if (!ws || !ws["!ref"]) return [];
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+    const rows = [];
+    for (let r = range.s.r; r <= range.e.r; r++) {
+        const row = [];
+        for (let c = range.s.c; c <= range.e.c; c++) row.push(readCell(ws, r, c));
+        rows.push(row);
+    }
+    return rows;
+}
+
+function findHeaderSheet(workbook) {
+    for (const name of workbook.SheetNames) {
+        const rows = sheetToRows(workbook.Sheets[name]).slice(0, 5);
+        const joined = rows.map(function (r) { return r.join("|"); }).join("|");
+        if (joined.includes("公司中文名称") && (joined.includes("最近A1递交日") || joined.includes("首次A1递交日"))) return name;
+    }
+    return workbook.SheetNames[0];
+}
+
+function findTemplateSheet(workbook) {
+    return workbook.SheetNames.find(function (name) { return /HKEX|交表|递表/i.test(name); }) || workbook.SheetNames[0];
+}
+
+function getIdxAny(header, names) {
+    for (const name of names) {
+        const idx = header.findIndex(function (h) { return cleanText(h) === name; });
+        if (idx !== -1) return idx;
+    }
+    return -1;
+}
+
+function pick(row, idx) {
+    return idx >= 0 && idx < row.length ? cleanText(row[idx]) : "";
+}
+
+function looksLikeOfficeXmlNoise(value) {
+    return /<\/?a:|a:(?:defRPr|pPr|rPr|latin|ea|cs|solidFill|schemeClr)|rPrsz=|typeface=|schemeClrval=|smtClean=|dirty=|err=/i.test(String(value || ""));
+}
+
+function looksLikeLawFirm(value) {
+    const s = cleanText(value);
+    return !!s && /(律师|律所|法律|事务所|合伙|Skadden|Clifford|King\s*&?\s*Wood|JunHe|Maples|Kirkland|Freshfields|Latham|Sidley|Davis Polk|Sullivan|Linklaters|Allen\s*&?\s*Overy|Mayer Brown|Cooley|Walkers|Conyers|Ogier|Harneys|Maples|Appleby)/i.test(s);
+}
+
+function pickLawyer(row, primaryIdx, fallbackIdx, scanStart) {
+    const candidates = [];
+    [primaryIdx, fallbackIdx].forEach(function (idx) {
+        if (idx >= 0 && idx < row.length && !candidates.includes(idx)) candidates.push(idx);
+    });
+    for (let i = Math.max(0, scanStart || 0); i < row.length; i++) {
+        if (!candidates.includes(i)) candidates.push(i);
+    }
+
+    for (const idx of candidates) {
+        const raw = row[idx];
+        if (raw == null || raw === "" || String(raw).trim().startsWith("=")) continue;
+        if (looksLikeOfficeXmlNoise(raw)) continue;
+        const cleaned = cleanText(raw);
+        if (looksLikeLawFirm(cleaned)) return cleaned;
+    }
+    return "";
+}
+
+function parseHearingRows(rows) {
+    if (!rows.length) return [];
+    const headerRowIndex = rows.findIndex(function (row) {
+        return row.some(function (cell) { return cleanText(cell) === "公司中文名称"; });
+    });
+    if (headerRowIndex === -1) throw new Error("聆讯表未找到“公司中文名称”表头。");
+
+    const header = rows[headerRowIndex].map(cleanText);
+    const idx = {
+        firstA1: getIdxAny(header, ["首次A1递交日", "A1递交日", "递交日"]),
+        latestA1: getIdxAny(header, ["最近A1递交日", "A1更新日期", "A1更新日"]),
+        shortName: getIdxAny(header, ["证券简称", "简称"]),
+        cn: getIdxAny(header, ["公司中文名称", "中文名称"]),
+        en: getIdxAny(header, ["公司英文名称", "英文名称"]),
+        sponsor: getIdxAny(header, ["保荐机构", "保荐人"]),
+        coordinator: getIdxAny(header, ["全球协调人", "整体协调人"]),
+        office: getIdxAny(header, ["办公地址", "地址"]),
+        registered: getIdxAny(header, ["注册地址"]),
+        desc: getIdxAny(header, ["公司简介", "简介", "业务描述", "公司概况"]),
+        industry: getIdxAny(header, ["所属Wind行业", "Wind行业", "行业"]),
+        status: getIdxAny(header, ["申请状态", "审核状态"]),
+        passDate: getIdxAny(header, ["首次聆讯通过日", "聆讯通过日", "PHIP材料更新日"]),
+        companyLawyer: getIdxAny(header, ["公司律师", "发行人律师", "首发发行人律师"]),
+        sponsorLawyer: getIdxAny(header, ["保荐人律师", "首发保荐人律师"]),
+        revenue: getIdxAny(header, ["收入", "年收入（人民币千元）", "营业收入", "最新收入", "最新年内收入"]),
+        profit: getIdxAny(header, ["利润", "归母净利润", "净利润", "最新净利润", "最新归母年内净利润"])
+    };
+
+    // Wind 表后四列常见为公司律师、保荐人律师、收入、净利润，但表头为空。
+    const fallback = {
+        companyLawyer: idx.companyLawyer === -1 ? 31 : idx.companyLawyer,
+        sponsorLawyer: idx.sponsorLawyer === -1 ? 32 : idx.sponsorLawyer,
+        revenue: idx.revenue === -1 ? 33 : idx.revenue,
+        profit: idx.profit === -1 ? 34 : idx.profit
+    };
+
+    const items = [];
+    for (let r = headerRowIndex + 1; r < rows.length; r++) {
+        const row = rows[r];
+        const cn = pick(row, idx.cn);
+        if (!cn) continue;
+        items.push({
+            shortName: pick(row, idx.shortName),
+            cn,
+            en: pick(row, idx.en),
+            firstA1: formatDate(pick(row, idx.firstA1)),
+            latestA1: formatDate(pick(row, idx.latestA1)),
+            sponsor: pick(row, idx.sponsor),
+            coordinator: pick(row, idx.coordinator),
+            office: pick(row, idx.office),
+            registered: pick(row, idx.registered),
+            description: pick(row, idx.desc),
+            industry: pick(row, idx.industry),
+            status: pick(row, idx.status),
+            passDate: formatDate(pick(row, idx.passDate)),
+            companyLawyer: pickLawyer(row, idx.companyLawyer, fallback.companyLawyer, 27),
+            sponsorLawyer: pickLawyer(row, idx.sponsorLawyer, fallback.sponsorLawyer, 27),
+            revenue: pick(row, fallback.revenue),
+            profit: pick(row, fallback.profit),
+            raw: row
+        });
+    }
+    return items;
+}
+
+function parseTSV(str) {
+    const rows = [];
+    let curRow = [], curCell = "", inQuote = false;
+    for (let i = 0; i < str.length; i++) {
+        const c = str[i], n = str[i + 1];
+        if (c === "\"" && inQuote && n === "\"") { curCell += "\""; i++; }
+        else if (c === "\"") inQuote = !inQuote;
+        else if (c === "\t" && !inQuote) { curRow.push(curCell); curCell = ""; }
+        else if ((c === "\n" || c === "\r") && !inQuote) {
+            if (c === "\r" && n === "\n") i++;
+            curRow.push(curCell); rows.push(curRow); curRow = []; curCell = "";
+        } else curCell += c;
+    }
+    if (curCell || curRow.length) { curRow.push(curCell); rows.push(curRow); }
+    return mergeBrokenRows(rows);
+}
+
+function mergeBrokenRows(raw) {
+    if (!raw.length) return raw;
+    const colCount = raw[0].length;
+    const merged = [raw[0]];
+    for (let i = 1; i < raw.length; i++) {
+        const row = raw[i].slice();
+        while (row.length < colCount && i + 1 < raw.length) {
+            i++;
+            const next = raw[i];
+            row[row.length - 1] = cleanText(row[row.length - 1] + "\n" + (next[0] || ""));
+            for (let j = 1; j < next.length; j++) row.push(next[j]);
+        }
+        merged.push(row);
+    }
+    return merged;
+}
+
+function pptText(xml) {
+    const out = [];
+    const re = /<a:t[^>]*>([\s\S]*?)<\/a:t>/g;
+    let match;
+    while ((match = re.exec(xml)) !== null) out.push(xmlDecode(match[1]));
+    return out.join("");
+}
+
+function pptParagraphs(xml) {
+    const paras = [];
+    const pRe = /<a:p\b[^>]*>([\s\S]*?)<\/a:p>/g;
+    let pMatch;
+    while ((pMatch = pRe.exec(xml)) !== null) {
+        const text = cleanText(pptText(pMatch[1]));
+        if (text) paras.push(text);
+    }
+    return paras;
+}
+
+function pptTables(xml) {
+    const tables = [];
+    const tRe = /<a:tbl\b[^>]*>([\s\S]*?)<\/a:tbl>/g;
+    let tMatch;
+    while ((tMatch = tRe.exec(xml)) !== null) {
+        const rows = [];
+        const rRe = /<a:tr\b[^>]*>([\s\S]*?)<\/a:tr>/g;
+        let rMatch;
+        while ((rMatch = rRe.exec(tMatch[1])) !== null) {
+            const cells = [];
+            const cRe = /<a:tc\b[^>]*>([\s\S]*?)<\/a:tc>/g;
+            let cMatch;
+            while ((cMatch = cRe.exec(rMatch[1])) !== null) cells.push(pptParagraphs(cMatch[1]));
+            if (cells.length) rows.push(cells);
+        }
+        if (rows.length) tables.push(rows);
+    }
+    return tables;
+}
+
+async function parsePptFile(file) {
+    const buf = await readAsArrayBuffer(file);
+    const zip = await JSZip.loadAsync(buf);
+    const relsXml = await zip.files["ppt/_rels/presentation.xml.rels"].async("text");
+    const ridToFile = {};
+    const relRe = /Id="([^"]+)"[^>]*Target="slides\/([^"]+)"/g;
+    let relMatch;
+    while ((relMatch = relRe.exec(relsXml)) !== null) ridToFile[relMatch[1]] = relMatch[2];
+
+    const presXml = await zip.files["ppt/presentation.xml"].async("text");
+    const slideRids = [];
+    const sRe = /<p:sldId[^>]*r:id="([^"]+)"/g;
+    let sMatch;
+    while ((sMatch = sRe.exec(presXml)) !== null) slideRids.push(sMatch[1]);
+
+    const records = [];
+    for (const rid of slideRids) {
+        const slideName = ridToFile[rid];
+        if (!slideName) continue;
+        const path = "ppt/slides/" + slideName;
+        if (!zip.files[path]) continue;
+        const xml = await zip.files[path].async("text");
+        const text = pptText(xml);
+        if (!text.includes("保荐人") || !text.includes("整体协调人")) continue;
+        const fromSlide = parsePptApplicationRows(xml);
+        fromSlide.forEach(function (record) { records.push(record); });
+    }
+
+    const seen = new Set();
+    return records.filter(function (record) {
+        const key = normCompany(record.company);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+function parsePptApplicationRows(xml) {
+    const tables = pptTables(xml);
+    let headerTable = -1, headerRow = -1, cols = null;
+
+    for (let ti = 0; ti < tables.length; ti++) {
+        for (let ri = 0; ri < tables[ti].length; ri++) {
+            const flat = tables[ti][ri].map(function (cell) { return cell.join(" "); });
+            const hasCompany = flat.some(function (cell) { return /公司/.test(cell) && !/公司概况|公司名称/.test(cell); });
+            const hasSponsor = flat.some(function (cell) { return /保荐人|保荐机构/.test(cell); });
+            const hasCoordinator = flat.some(function (cell) { return /整体协调人|全球协调人/.test(cell); });
+            if (hasCompany && hasSponsor && hasCoordinator) {
+                cols = mapPptHeader(flat);
+                headerTable = ti;
+                headerRow = ri;
+                break;
+            }
+        }
+        if (cols) break;
+    }
+    if (!cols || cols.company === -1) return [];
+
+    const rows = [];
+    for (let ti = headerTable; ti < tables.length; ti++) {
+        const startRow = ti === headerTable ? headerRow + 1 : 0;
+        for (let ri = startRow; ri < tables[ti].length; ri++) {
+            const row = tables[ti][ri];
+            const company = cellOneLine(row[cols.company]);
+            if (!company || /资料来源|附注|注[:：]/.test(company)) continue;
+            if (/最近一周|新增已递交|上市申请/.test(company)) continue;
+            rows.push({
+                company,
+                a1: formatDate(cellOneLine(row[cols.a1])),
+                sponsors: cellLines(row[cols.sponsor]),
+                coordinators: cellLines(row[cols.coordinator]),
+                region: cellOneLine(row[cols.region]),
+                industry: cellOneLine(row[cols.industry]),
+                description: cellOneLine(row[cols.description])
+            });
+        }
+    }
+    return rows;
+}
+
+function mapPptHeader(flat) {
+    const find = function (re) {
+        return flat.findIndex(function (cell) { return re.test(cleanText(cell)); });
+    };
+    return {
+        company: find(/^公司$|公司(?!概况|名称)/),
+        a1: find(/A1|更新日期|更新日/),
+        sponsor: find(/保荐人|保荐机构/),
+        coordinator: find(/整体协调人|全球协调人/),
+        region: find(/地区/),
+        industry: find(/行业/),
+        description: find(/公司概况|主营业务|业务/)
+    };
+}
+
+function cellLines(cell) {
+    if (!cell) return [];
+    return cell.map(cleanText).filter(Boolean);
+}
+
+function cellOneLine(cell) {
+    return cellLines(cell).join(" ").trim();
+}
+
+function simplifyInstitution(name) {
+    let s = cleanText(name)
+        .replace(/[()（）]/g, "")
+        .replace(/\s+/g, "");
+    if (!s) return "";
+    for (const key of Object.keys(institutionMap)) {
+        if (s.includes(key)) return institutionMap[key];
+    }
+    return s
+        .replace(/证券与期货|证券\(香港\)|香港证券|亚洲|香港|融资|证券|资本市场|资本|金融控股|有限责任公司|有限公司|Limited|Corporation|Securities|Capital/ig, "")
+        .trim();
+}
+
+function splitInstitutions(value) {
+    const raw = Array.isArray(value) ? value : String(value || "").split(/\n/);
+    const items = [];
+    raw.forEach(function (entry) {
+        cleanText(entry).split(/[、,，;；/]/).forEach(function (part) {
+            const simplified = simplifyInstitution(part);
+            if (simplified) items.push(simplified);
+        });
+    });
+    return unique(items);
+}
+
+function splitNames(value) {
+    return unique(cleanText(value).split(/[、,，;；\n]/).map(cleanText).filter(Boolean));
+}
+
+function formatLawyers(value) {
+    return splitNames(value).filter(looksLikeLawFirm).join("\n");
+}
+
+function unique(items) {
+    const seen = new Set();
+    const out = [];
+    items.forEach(function (item) {
+        const key = compactText(item).toLowerCase();
+        if (item && !seen.has(key)) { seen.add(key); out.push(item); }
+    });
+    return out;
+}
+
+function orderCoordinators(coordinators, sponsors) {
+    const sponsorKeys = new Set(sponsors.map(function (s) { return compactText(s).toLowerCase(); }));
+    const inSponsors = [];
+    const others = [];
+    coordinators.forEach(function (name) {
+        const key = compactText(name).toLowerCase();
+        if (sponsorKeys.has(key)) inSponsors.push(name);
+        else others.push(name);
+    });
+    return unique(inSponsors.concat(others));
+}
+
+function shortenDescription(text) {
+    const s = cleanText(text).replace(/^公司主营[:：]\s*/, "");
+    if (s.length <= 200) return s;
+    const sub = s.slice(0, 200);
+    const ends = ["。", "！", "？", ";", "；", ". ", "! ", "? "].map(function (mark) { return sub.lastIndexOf(mark); });
+    const last = Math.max.apply(null, ends);
+    if (last > 70) return sub.slice(0, last + 1);
+    return sub + "...";
+}
+
+function extractRegion(address) {
+    const s = cleanText(address);
+    if (!s) return "";
+    const direct = s.match(/(北京|上海|天津|重庆|香港|澳门|台湾)[市省]?([^市区县州盟]{1,8}[市区县州盟])?/);
+    if (direct) return (direct[1] + (direct[2] || "")).replace(/[市区县州盟]/g, "");
+    const match = s.match(/(.{2,8}?)(省|自治区)(.{1,8}?)(市|区|州|盟)/);
+    if (match) return (match[1] + match[3]).replace(/[省市区州盟]/g, "");
+    return s.slice(0, 4);
+}
+
+function normCompany(name) {
+    return cleanText(name)
+        .replace(/（[^）]*）|\([^)]*\)/g, "")
+        .replace(/股份有限公司|有限责任公司|有限公司|股份有限|控股有限公司|控股公司|集团股份|集团|控股|科技|生物|医药|医疗|药业|网络|数字|智能|新能源|新材料|环保|国际|中国|香港|设备|电子|半导体|微电子|机器人|公司/g, "")
+        .replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, "")
+        .toLowerCase();
+}
+
+function companyMatches(pptName, item) {
+    const names = [item.cn, item.shortName].filter(Boolean);
+    for (const name of names) {
+        const a = cleanText(pptName).toLowerCase();
+        const b = cleanText(name).toLowerCase();
+        if (a === b || a.includes(b) || b.includes(a)) return true;
+        const na = normCompany(pptName), nb = normCompany(name);
+        if (na && nb && (na === nb || (na.length >= 2 && nb.includes(na)) || (nb.length >= 2 && na.includes(nb)))) return true;
+    }
+    return false;
+}
+
+function findHearingForPpt(record, used) {
+    let best = -1;
+    for (let i = 0; i < state.hearingItems.length; i++) {
+        if (used && used.has(i)) continue;
+        if (companyMatches(record.company, state.hearingItems[i])) { best = i; break; }
+    }
+    return best;
+}
+
+function buildOutputRow(item, ppt, options, rowNo) {
+    const hasPpt = !!ppt;
+    const fallbackSponsors = options.fallbackSponsor && item;
+    const sponsors = hasPpt ? splitInstitutions(ppt.sponsors) : (fallbackSponsors ? splitInstitutions(item.sponsor) : []);
+    const rawCoordinators = hasPpt ? splitInstitutions(ppt.coordinators) : (fallbackSponsors ? splitInstitutions(item.coordinator) : []);
+    const coordinators = orderCoordinators(rawCoordinators, sponsors);
+    const passDate = item ? item.passDate : "";
+    const sourceStatus = item ? cleanText(item.status) : "";
+    const status = passDate ? (formatChineseDate(passDate) + "\n聆讯后资料集挂网") : (sourceStatus && sourceStatus !== "处理中" ? sourceStatus : "正在审核中");
+    const business = shortenDescription((item && item.description) || (ppt && ppt.description) || "");
+
+    return [
+        rowNo,
+        (item && item.cn) || (ppt && ppt.company) || "",
+        (item && item.en) || "",
+        formatDate((item && (item.latestA1 || item.firstA1)) || (ppt && ppt.a1) || ""),
+        sponsors.join("\n"),
+        coordinators.join("\n"),
+        formatLawyers(item && item.companyLawyer),
+        formatLawyers(item && item.sponsorLawyer),
+        (options.preferPptBrief && ppt && ppt.region) || extractRegion((item && (item.office || item.registered)) || "") || (ppt && ppt.region) || "",
+        (options.preferPptBrief && ppt && ppt.industry) || (item && item.industry) || (ppt && ppt.industry) || "",
+        business,
+        item ? cleanText(item.revenue) : "",
+        item ? cleanText(item.profit) : "",
+        status
+    ];
+}
+
+function generateRows() {
+    const options = getOptions();
+    const rows = [];
+    const log = [];
+    const used = new Set();
+    let matched = 0, pptOnly = 0, missingPpt = 0;
+
+    if (options.onlyPptRows) {
+        state.pptRecords.forEach(function (record) {
+            const idx = findHearingForPpt(record, used);
+            if (idx !== -1) {
+                used.add(idx);
+                matched++;
+                rows.push(buildOutputRow(state.hearingItems[idx], record, options, rows.length + 1));
+            } else {
+                pptOnly++;
+                rows.push(buildOutputRow(null, record, options, rows.length + 1));
+                log.push("周报中未在聆讯表匹配到：" + record.company);
+            }
+        });
+    } else {
+        state.pptRecords.forEach(function (record) {
+            const idx = findHearingForPpt(record, used);
+            if (idx !== -1) {
+                used.add(idx);
+                matched++;
+                rows.push(buildOutputRow(state.hearingItems[idx], record, options, rows.length + 1));
+            }
+        });
+        state.hearingItems.forEach(function (item, idx) {
+            if (used.has(idx)) return;
+            missingPpt++;
+            rows.push(buildOutputRow(item, null, options, rows.length + 1));
+        });
+        if (missingPpt && !options.fallbackSponsor) log.push("有 " + missingPpt + " 条聆讯表记录未匹配周报，保荐人/整体协调人已留空。");
+        if (missingPpt && options.fallbackSponsor) log.push("有 " + missingPpt + " 条聆讯表记录未匹配周报，已按你的勾选使用聆讯表兜底。");
+    }
+
+    state.lastLog = log;
+    return { rows: [OUTPUT_HEADERS].concat(rows), matched, pptOnly, missingPpt };
+}
+
+function getOptions() {
+    return {
+        onlyPptRows: true,
+        preferPptBrief: $("preferPptBrief").checked,
+        fallbackSponsor: $("fallbackSponsor").checked
+    };
+}
+
+function buildWorkbook(outputRows) {
+    const options = getOptions();
+    let wb;
+    let sheetName = "HKEX交表公司";
+    let rowsForSheet = outputRows;
+
+    if (state.templateWorkbook && options.mergeTemplate) {
+        wb = state.templateWorkbook;
+        sheetName = findTemplateSheet(wb);
+        const existingRows = sheetToRows(wb.Sheets[sheetName]);
+        const header = existingRows[0] && existingRows[0].some(Boolean) ? normalizeWidth(existingRows[0], OUTPUT_HEADERS.length) : OUTPUT_HEADERS;
+        const generated = outputRows.slice(1).map(function (row) { return normalizeWidth(row, OUTPUT_HEADERS.length); });
+        const keys = new Set(generated.map(function (row) { return normCompany(row[1]); }).filter(Boolean));
+        const kept = existingRows.slice(1).filter(function (row) {
+            const key = normCompany(row[1]);
+            return key && !keys.has(key);
+        }).map(function (row) { return normalizeWidth(row, OUTPUT_HEADERS.length); });
+        rowsForSheet = [header].concat(generated).concat(kept);
+        rowsForSheet.slice(1).forEach(function (row, i) { row[0] = i + 1; });
+    } else {
+        wb = XLSX.utils.book_new();
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rowsForSheet);
+    ws["!cols"] = [
+        { wch: 6 }, { wch: 30 }, { wch: 34 }, { wch: 13 }, { wch: 18 }, { wch: 20 },
+        { wch: 24 }, { wch: 24 }, { wch: 12 }, { wch: 18 }, { wch: 58 }, { wch: 18 },
+        { wch: 18 }, { wch: 18 }
+    ];
+    if (wb.SheetNames.includes(sheetName)) wb.Sheets[sheetName] = ws;
+    else XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    return wb;
+}
+
+function normalizeWidth(row, width) {
+    const out = row.slice(0, width);
+    while (out.length < width) out.push("");
+    return out;
+}
+
+function renderResults(result, addedCount) {
+    state.generatedRows = result.rows;
+    $("copyBtn").disabled = false;
+    $("resultPanel").style.display = "block";
+
+    $("summary").innerHTML = [
+        metric("聆讯表记录", state.hearingItems.length),
+        metric("周报新增项目", state.pptRecords.length),
+        metric("匹配成功", result.matched),
+        metric("已加入数据库", addedCount || 0)
+    ].join("");
+
+    const warnings = [];
+    if (result.pptOnly) warnings.push(result.pptOnly + " 条周报项目未匹配聆讯表，已保留周报字段并留空缺失项。");
+    if (result.missingPpt) warnings.push(result.missingPpt + " 条聆讯表项目未匹配周报。");
+    $("log").textContent = warnings.concat(state.lastLog).join("\n");
+    $("weeklyTsv").value = rowsToTsv(result.rows);
+    $("weeklyTsv").focus();
+    $("weeklyTsv").select();
+}
+
+function renderDatabase(message) {
+    const rows = state.dbRows || [];
+    $("dbSummary").innerHTML = [
+        metric("数据库记录", rows.length),
+        metric("固定模板底座", state.seedCount || 0),
+        metric("最新序号", rows.length ? rows[0].seq : 0),
+        metric("预览行数", Math.min(rows.length, 50))
+    ].join("");
+    $("dbLog").textContent = message || "数据库保存在 Netlify Blobs；每周生成会插入最前面，不会自动去重。";
+    renderPreview([OUTPUT_HEADERS].concat(rows.slice(0, 50).map(function (record) { return record.values; })), "dbTable");
+}
+
+function metric(label, value) {
+    return "<div class=\"metric\"><span>" + escapeHtml(label) + "</span><strong>" + value + "</strong></div>";
+}
+
+function renderPreview(rows, tableId) {
+    const preview = rows.slice(0, tableId === "dbTable" ? 51 : 31);
+    $(tableId || "dbTable").innerHTML = preview.map(function (row, r) {
+        const tag = r === 0 ? "th" : "td";
+        return "<tr>" + row.map(function (cell) {
+            return "<" + tag + ">" + escapeHtml(cell).replace(/\n/g, "<br>") + "</" + tag + ">";
+        }).join("") + "</tr>";
+    }).join("");
+}
+
+function escapeHtml(value) {
+    return cleanText(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+function rowsToTsv(rows) {
+    return rows.map(function (row) {
+        return row.map(function (value) {
+            const s = cleanText(value);
+            return /[\t\n"]/.test(s) ? "\"" + s.replace(/"/g, "\"\"") + "\"" : s;
+        }).join("\t");
+    }).join("\n");
+}
+
+function downloadGeneratedWorkbook() {
+    if (!state.downloadWorkbook) return;
+    const wbout = XLSX.write(state.downloadWorkbook, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = state.outputName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+async function copyGeneratedTsv() {
+    if (!state.generatedRows.length) return;
+    await copyTextToClipboard(rowsToTsv(state.generatedRows));
+    setStatus("TSV 已复制，可直接粘贴到 Excel。", "ok");
+}
+
+async function copyDatabaseTsv() {
+    const rows = await getDatabaseRows();
+    const text = rowsToTsv([OUTPUT_HEADERS].concat(rows.map(function (record) { return record.values; })));
+    await copyTextToClipboard(text);
+    renderDatabase("数据库 TSV 已复制，共 " + rows.length + " 条。");
+    setStatus("数据库 TSV 已复制。", "ok");
+}
+
+async function copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+}
+
+async function handleHearingFile(file, nameId) {
+    try {
+        requireLibraries();
+        $(nameId).textContent = file.name;
+        state.hearingFile = file;
+        setStatus("正在读取聆讯信息一览...", "info");
+        const wb = XLSX.read(await readAsArrayBuffer(file), { type: "array", cellDates: true, cellFormula: true, cellNF: true });
+        const sheetName = findHeaderSheet(wb);
+        state.hearingItems = parseHearingRows(sheetToRows(wb.Sheets[sheetName]));
+        setStatus("已读取聆讯表 " + state.hearingItems.length + " 条记录。", "ok");
+    } catch (e) {
+        setStatus("读取聆讯表失败：" + e.message, "err");
+    }
+}
+
+async function handlePptFile(file, nameId) {
+    try {
+        requireLibraries();
+        $(nameId).textContent = file.name;
+        state.pptFile = file;
+        setStatus("正在解析周报 PPT...", "info");
+        state.pptRecords = await parsePptFile(file);
+        if (!state.pptRecords.length) throw new Error("未找到含“保荐人/整体协调人”的新增上市申请表格。");
+        setStatus("已从周报提取 " + state.pptRecords.length + " 条新增申请记录。", "ok");
+    } catch (e) {
+        setStatus("解析 PPT 失败：" + e.message, "err");
+    }
+}
+
+async function handleTemplateFile(file, nameId) {
+    try {
+        requireLibraries();
+        $(nameId).textContent = file.name;
+        state.templateFile = file;
+        setStatus("正在读取近六个月模板...", "info");
+        state.templateWorkbook = XLSX.read(await readAsArrayBuffer(file), { type: "array", cellDates: true, cellFormula: true, cellNF: true });
+        setStatus("模板已读取，生成时会合并到“" + findTemplateSheet(state.templateWorkbook) + "”。", "ok");
+    } catch (e) {
+        setStatus("读取模板失败：" + e.message, "err");
+    }
+}
+
+async function generate() {
+    try {
+        requireLibraries();
+        if (!state.hearingItems.length) throw new Error("请先上传聆讯信息一览 Excel。");
+        if (!state.pptRecords.length) throw new Error("请先上传全球资本市场周报 PPTX。");
+        setStatus("正在生成结果...", "info");
+        const result = generateRows();
+        const added = await prependWeeklyRows(result.rows);
+        renderResults(result, added);
+        renderDatabase("本周新增 " + added + " 条已插入数据库最前面。");
+        setStatus("生成完成。本周 TSV 已选中，并已加入数据库。", result.pptOnly || result.missingPpt ? "warn" : "ok");
+    } catch (e) {
+        setStatus(e.message, "err");
+    }
+}
+
+async function convertLegacy() {
+    try {
+        const input = $("legacyInput").value;
+        if (!input.trim()) throw new Error("请先粘贴数据。");
+        const oldItems = state.hearingItems;
+        state.hearingItems = parseHearingRows(parseTSV(input));
+        const result = generateRows();
+        $("legacyOutput").value = rowsToTsv(result.rows);
+        $("legacyOutput").select();
+        document.execCommand("copy");
+        renderResults(result);
+        state.hearingItems = oldItems.length ? oldItems : state.hearingItems;
+        setStatus("粘贴内容已转换并复制。", "ok");
+    } catch (e) {
+        setStatus("粘贴转换失败：" + e.message, "err");
+    }
+}
+
+bindDrop("dropHearing", "hearingFile", "hearingName", handleHearingFile);
+bindDrop("dropPpt", "pptFile", "pptName", handlePptFile);
+$("generateBtn").addEventListener("click", generate);
+$("copyBtn").addEventListener("click", copyGeneratedTsv);
+$("copyDbBtn").addEventListener("click", copyDatabaseTsv);
+$("cleanDupBtn").addEventListener("click", cleanupDuplicateCompanies);
+document.addEventListener("DOMContentLoaded", async function () {
+    try {
+        requireLibraries();
+        const savedToken = sessionStorage.getItem("ipoDbToken");
+        if (savedToken) $("adminToken").value = savedToken;
+        await loadRemoteDatabase();
+        setStatus("线上数据库已就绪。上传本周聆讯信息和周报后即可生成 TSV。", "ok");
+    } catch (e) {
+        setStatus(e.message, "err");
+    }
+});
+</script>
+</body>
+</html>
