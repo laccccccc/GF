@@ -415,7 +415,8 @@ async function loadRemoteDatabase(message) {
     const data = await apiRequest("GET");
     state.dbRows = Array.isArray(data.rows) ? data.rows : [];
     state.seedCount = data.seedCount || 0;
-    renderDatabase(message || (data.writeProtected ? "线上数据库已连接，写入需要管理密码。" : "线上数据库已连接。未设置管理密码时，知道网址的人都可以写入。"));
+    const duplicateNote = typeof data.duplicateCount === "number" ? " 当前可清理重复行：" + data.duplicateCount + " 条。" : "";
+    renderDatabase((message || (data.writeProtected ? "线上数据库已连接，写入需要管理密码。" : "线上数据库已连接。未设置管理密码时，知道网址的人都可以写入。")) + duplicateNote);
     return state.dbRows;
 }
 
@@ -436,20 +437,37 @@ async function prependWeeklyRows(rows) {
 }
 
 async function cleanupDuplicateCompanies() {
-    const data = await apiRequest("POST", { action: "cleanup" });
-    state.dbRows = Array.isArray(data.rows) ? data.rows : [];
-    state.seedCount = data.seedCount || state.seedCount;
-    renderDatabase(data.removed ? ("已清理 " + data.removed + " 条重复行，保留序号靠前的记录。") : "没有发现中文名或英文名完全相同的靠后重复行。");
-    return data.removed || 0;
+    try {
+        setStatus("正在清理线上数据库重复公司...", "info");
+        const data = await apiRequest("POST", { action: "cleanup" });
+        state.dbRows = Array.isArray(data.rows) ? data.rows : [];
+        state.seedCount = data.seedCount || state.seedCount;
+        const message = data.removed ? ("已清理 " + data.removed + " 条重复行，保留序号靠前的记录。") : "没有发现中文名或英文名完全相同的靠后重复行。";
+        renderDatabase(message);
+        setStatus(message, "ok");
+        return data.removed || 0;
+    } catch (e) {
+        const message = "清理失败：" + e.message;
+        renderDatabase(message);
+        setStatus(message, "err");
+        return 0;
+    }
 }
 
 async function resetRemoteDatabase() {
     if (!confirm("确定要把线上数据库重置为固定模板吗？这会清空所有已滚动新增的数据。")) return;
-    const data = await apiRequest("POST", { action: "reset" });
-    state.dbRows = Array.isArray(data.rows) ? data.rows : [];
-    state.seedCount = data.seedCount || state.seedCount;
-    renderDatabase("已重置为固定模板：" + state.dbRows.length + " 条。");
-    setStatus("线上数据库已重置为固定模板。", "ok");
+    try {
+        setStatus("正在重置线上数据库...", "info");
+        const data = await apiRequest("POST", { action: "reset" });
+        state.dbRows = Array.isArray(data.rows) ? data.rows : [];
+        state.seedCount = data.seedCount || state.seedCount;
+        renderDatabase("已重置为固定模板：" + state.dbRows.length + " 条。");
+        setStatus("线上数据库已重置为固定模板。", "ok");
+    } catch (e) {
+        const message = "重置失败：" + e.message;
+        renderDatabase(message);
+        setStatus(message, "err");
+    }
 }
 
 function bindDrop(labelId, inputId, nameId, onFile) {
@@ -1179,11 +1197,15 @@ async function copyGeneratedTsv() {
 }
 
 async function copyDatabaseTsv() {
-    const rows = await getDatabaseRows();
-    const text = rowsToTsv([OUTPUT_HEADERS].concat(rows.map(function (record) { return record.values; })));
-    await copyTextToClipboard(text);
-    renderDatabase("数据库 TSV 已复制，共 " + rows.length + " 条。");
-    setStatus("数据库 TSV 已复制。", "ok");
+    try {
+        const rows = await getDatabaseRows();
+        const text = rowsToTsv([OUTPUT_HEADERS].concat(rows.map(function (record) { return record.values; })));
+        await copyTextToClipboard(text);
+        renderDatabase("数据库 TSV 已复制，共 " + rows.length + " 条。");
+        setStatus("数据库 TSV 已复制。", "ok");
+    } catch (e) {
+        setStatus("复制数据库失败：" + e.message, "err");
+    }
 }
 
 async function copyTextToClipboard(text) {
