@@ -146,11 +146,16 @@ function cleanupRows(rows) {
   return { kept, removed };
 }
 
+function countDuplicateRows(rows) {
+  const { removed } = cleanupRows(rows);
+  return removed.length;
+}
+
 export default async function handler(request) {
   try {
     if (request.method === "GET") {
       const db = await readDatabase();
-      return json(200, { ok: true, ...db, writeProtected: !!process.env.IPO_DB_TOKEN });
+      return json(200, { ok: true, ...db, duplicateCount: countDuplicateRows(db.rows), writeProtected: !!process.env.IPO_DB_TOKEN });
     }
 
     if (request.method !== "POST") {
