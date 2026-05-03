@@ -64,14 +64,15 @@ function makeRowId(values, index) {
 
 function toRecords(rows, source = "database") {
   return rows.map((row, index) => {
-    const values = normalizeWidth(row.values || row);
+    const rawValues = Array.isArray(row) ? row : row.values;
+    const values = normalizeWidth(rawValues);
     values[0] = index + 1;
     return {
-      id: row.id || makeRowId(values, index),
+      id: Array.isArray(row) ? makeRowId(values, index) : row.id || makeRowId(values, index),
       seq: index + 1,
       values,
-      source: row.source || source,
-      updatedAt: row.updatedAt || new Date().toISOString(),
+      source: Array.isArray(row) ? source : row.source || source,
+      updatedAt: Array.isArray(row) ? new Date().toISOString() : row.updatedAt || new Date().toISOString(),
     };
   });
 }
